@@ -4,11 +4,11 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>com.example</groupId>
-	<artifactId>demo</artifactId>
+	<artifactId>docker-integration-example</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
-	<name>demo</name>
+	<name>docker-integration-example</name>
 	<description>Demo project for Spring Boot</description>
 
 	<parent>
@@ -22,6 +22,7 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 		<java.version>1.8</java.version>
+                <quay.reponame>${project.name}2</quay.reponame>
 	</properties>
 
 	<dependencies>
@@ -44,6 +45,26 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
+      <plugin>
+        <groupId>com.spotify</groupId>
+        <artifactId>dockerfile-maven-plugin</artifactId>
+        <version>${dockerfile-maven-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>default</id>
+            <goals>
+              <goal>push</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <verbose>true</verbose>
+          <repository>quay.io/shamild/${quay.reponame}</repository>
+          <buildArgs>
+            <JAR_FILE>target/${project.build.finalName}.jar</JAR_FILE>
+          </buildArgs>
+        </configuration>
+      </plugin>
 	</build>
 
 
