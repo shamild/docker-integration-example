@@ -1,44 +1,163 @@
-# Java Maven CircleCI 2.0 configuration file
-#
-# Check https://circleci.com/docs/2.0/language-java/ for more details
-#
 version: 2
+
+# Snippets
+.maven-default: &maven-default
+  docker:
+    - image: circleci/openjdk:8-jdk-browsers
+  environment:
+    MAVEN_OPTS: -Xmx3200m
+.deploy-default: &deploy-default
+
+.persist-workspace: &persist-workspace
+  persist_to_workspace:
+    root: ~/
+    paths:
+      - project
+      - .m2
+.attach-workspace: &attach-workspace
+  attach_workspace:
+    at: ~/
+.requires-compile: &requires-compile
+  requires:
+    - compile
+.publish: &publish
+  <<: *maven-default
+  steps:
+    - *attach-workspace
+    - setup_remote_docker
+    - run:
+        name: Configure Docker
+        command: |
+          docker --version
+          docker login -u "$DOCKER_USER" -p "$DOCKER_PASS" quay.io
+    - deploy:
+        name: Push version tag
+        command: |
+          if [ "$CIRCLE_BRANCH" == "master" ]; then
+            tag=$(cat VERSION)
+          else
+            tag=$(git rev-parse HEAD)
+          fi
+          mvn dockerfile:build dockerfile:push "-Ddockerfile.tag=$tag"
+    - deploy:
+        name: Push branch tag
+        command: |
+          if [ -n "$DOCKER_BRANCH_TAG" ]; then
+            mvn dockerfile:build dockerfile:push "-Ddockerfile.tag=$DOCKER_BRANCH_TAG"
+          fi
+.deploy: &deploy
+  docker:
+    - image: alpine
+  steps:
+    - checkout
+    - run:
+        name: Install prerequisites
+        command: |
+          apk add --no-cache make curl git
+    - deploy:
+        name: Trigger deployment
+        command: make "$CIRCLE_JOB"
+
 jobs:
-  build:
-    docker:
-      # specify the version you desire here
-      - image: circleci/openjdk:8-jdk
-      
-      # Specify service dependencies here if necessary
-      # CircleCI maintains a library of pre-built images
-      # documented at https://circleci.com/docs/2.0/circleci-images/
-      # - image: circleci/postgres:9.4
-
-    working_directory: ~/repo
-
-    environment:
-      # Customize the JVM maximum heap limit
-      MAVEN_OPTS: -Xmx3200m
-    
+  compile:
+    <<: *maven-default
     steps:
       - checkout
-
-      # Download and cache dependencies
       - restore_cache:
           keys:
-          - v1-dependencies-{{ checksum "pom.xml" }}
+          - docker-integration-example-{{ checksum "pom.xml" }}
           # fallback to using the latest cache if no exact match is found
-          - v1-dependencies-
-
+          - docker-integration-example-
+      - run:
+          name: Configure Maven
+          command: |
+            mkdir -p ~/.m2
+            mv .circleci/settings.xml ~/.m2
       - run: mvn dependency:go-offline
-
       - save_cache:
           paths:
             - ~/.m2
-          key: v1-dependencies-{{ checksum "pom.xml" }}
-        
-      # run tests!
-      - run: mvn integration-test
-
-
-
+          key: docker-integration-example-{{ checksum "pom.xml" }}
+      - run:
+          name: Set version
+          command: |
+            if [ "$CIRCLE_BRANCH" != "master" ]; then
+              echo "$(cat VERSION)-SNAPSHOT" > VERSION
+            fi
+            mvn versions:set "-DnewVersion=$(cat VERSION)"
+      - run: mvn clean compile test-compile
+      - *persist-workspace
+  test:
+    machine:
+      image: circleci/classic:201711-01
+    steps:
+      - *attach-workspace
+      - run:
+          name: run tests
+          #Machine image uses oracle jvm by default, tells mvn to use installed open-jdk
+          command: |
+            export JAVA_HOME="/usr/lib/jvm/java-8-openjdk-amd64";
+            mvn test -Dmaven.compile.skip=true;
+      - store_test_results:
+          path: target/surefire-reports
+  integration-test:
+    machine:
+      image: circleci/classic:201711-01
+    steps:
+      - *attach-workspace
+      - run:
+          name: run tests
+          #Machine image uses oracle jvm by default, tells mvn to use installed open-jdk
+          command: |
+            export JAVA_HOME="/usr/lib/jvm/java-8-openjdk-amd64";
+            mvn verify -Dmaven.compile.skip=true;
+      - store_test_results:
+          path: target/surefire-reports
+  package:
+    <<: *maven-default
+    steps:
+      - *attach-workspace
+      - run: mvn package -Dmaven.test.skip=true
+      - *persist-workspace
+  publish-develop:
+    <<: *publish
+    environment:
+      DOCKER_BRANCH_TAG: develop
+  publish-master:
+    <<: *publish
+    environment:
+      DOCKER_BRANCH_TAG: latest
+  deploy-dev: *deploy
+  deploy-staging: *deploy
+workflows:
+  version: 2
+  build-deploy:
+    jobs:
+      - compile
+      - test: *requires-compile
+      - integration-test: *requires-compile
+      - package: *requires-compile
+      - publish-develop:
+          requires: &requires-built
+            - test
+            - integration-test
+            - package
+          filters:
+            branches:
+              only:
+                - develop
+      - deploy-dev:
+          requires:
+            - publish-develop
+      - staging-approval:
+          type: approval
+          requires: *requires-built
+          filters:
+            branches:
+              only: master
+      - publish-master:
+          requires:
+            - staging-approval
+      - deploy-staging:
+          requires:
+            - publish-master
