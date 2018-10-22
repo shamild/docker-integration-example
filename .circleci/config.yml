@@ -135,6 +135,10 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install prerequisites
+          command: |
+            apk add --no-cache git
+      - run:
           name: compare with master
           command: |
             if [ -z "$(git diff master..${CIRCLE_BRANCH})" ]
