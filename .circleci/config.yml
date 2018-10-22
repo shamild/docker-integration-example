@@ -149,7 +149,7 @@ jobs:
               exit 0
             else
               echo New commits in develop since last release:
-              git log --color --graph --abbrev-commit origin/master..origin/${CIRCLE_BRANCH}
+              git log --pretty=format:'%h -%d %s (%cr) <%an>' --abbrev-commit origin/master..origin/${CIRCLE_BRANCH}
             fi
   release: &release
     <<: *display-diff-from-master
