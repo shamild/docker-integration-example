@@ -141,14 +141,15 @@ jobs:
       - run:
           name: compare with master
           command: |
-            if [ -z "$(git diff master..${CIRCLE_BRANCH})" ]
+            echo compare master with origin/${CIRCLE_BRANCH}
+            if [ -z "$(git diff origin/master..origin/${CIRCLE_BRANCH})" ]
             then
               echo
               echo No changes on ${CIRCLE_BRANCH} since last release.
               exit 0
             else
               echo New commits in develop since last release:
-              git log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit master..develop
+              git log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit origin/master..${CIRCLE_BRANCH}
             fi
   release: &release
     <<: *display-diff-from-master
