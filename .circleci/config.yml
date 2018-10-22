@@ -134,11 +134,11 @@ jobs:
       - image: alpine
     steps:
       - checkout
-      - run:
+      - run: 
           name: Install prerequisites
           command: |
             apk add --no-cache git less
-      - run:
+      - run: &compare-with-master
           name: compare with master
           command: |
             echo compare master with origin/${CIRCLE_BRANCH}
@@ -152,8 +152,15 @@ jobs:
               git log --pretty=format:'%h -%d %s (%cr) <%an>' --abbrev-commit origin/master..origin/${CIRCLE_BRANCH}
             fi
   release: &release
-    <<: *display-diff-from-master
+    docker:
+      - image: alpine
     steps:
+      - checkout
+      - run:
+          name: Install prerequisites
+          command: |
+            apk add --no-cache git less
+      - run: *compare-with-master
       - run:
           name: Create release/v tag from develop
           command: |
