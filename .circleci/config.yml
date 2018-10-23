@@ -165,7 +165,7 @@ jobs:
           name: configure git user
           command: |
             git config --global user.email "you@example.com"
-            git config --global user.name "$CIRCLE_USERNAME"q       
+            git config --global user.name "$CIRCLE_USERNAME"       
       - run:
           name: Create release/v tag from develop
           command: |
