@@ -162,6 +162,11 @@ jobs:
             apk add --no-cache git less
       - run: *compare-with-master
       - run:
+          name: configure git user
+          command: |
+            git config --global user.email "you@example.com"
+            git config --global user.name "$CIRCLE_USERNAME"q       
+      - run:
           name: Create release/v tag from develop
           command: |
             # Current version, format is x.x.x, e.g. 0.1.5
