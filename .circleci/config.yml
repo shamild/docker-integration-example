@@ -169,6 +169,8 @@ jobs:
       - run:
           name: Create release/v tag from develop
           command: |
+            # Refresh branches to correct versions
+            git fetch --all --prune || use
             # Current version, format is x.x.x, e.g. 0.1.5
             CURRENT_VERSION=$(cat VERSION)
 
