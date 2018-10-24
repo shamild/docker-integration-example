@@ -129,6 +129,101 @@ jobs:
       DOCKER_BRANCH_TAG: latest
   deploy-dev: *deploy
   deploy-staging: *deploy
+  display-diff-from-master: &display-diff-from-master
+    docker:
+      - image: alpine
+    steps:
+      - checkout
+      - run: 
+          name: Install prerequisites
+          command: |
+            apk add --no-cache git less
+      - run: &compare-with-master
+          name: compare with master
+          command: |
+            echo compare master with origin/${CIRCLE_BRANCH}
+            if [ -z "$(git diff origin/master..origin/${CIRCLE_BRANCH})" ]
+            then
+              echo
+              echo No changes on ${CIRCLE_BRANCH} since last release.
+              exit 0
+            else
+              echo New commits in develop since last release:
+              git log --pretty=format:'%h -%d %s (%cr) <%an>' --abbrev-commit origin/master..origin/${CIRCLE_BRANCH}
+            fi
+  release: &release
+    docker:
+      - image: alpine
+    steps:
+      - checkout
+      - run:
+          name: Install prerequisites
+          command: |
+            apk add --no-cache git less
+      - run: *compare-with-master
+      - run:
+          name: configure git user
+          command: |
+            git config --global user.email "you@example.com"
+            git config --global user.name "$CIRCLE_USERNAME"       
+      - run:
+          name: Create release/v tag from develop
+          command: |
+            # Current version, format is x.x.x, e.g. 0.1.5
+            CURRENT_VERSION=$(cat VERSION)
+
+            MAJOR=$(echo ${CURRENT_VERSION} | cut -d \. -f 1)
+            MINOR=$(echo ${CURRENT_VERSION} | cut -d \. -f 2)
+            PATCH=$(echo ${CURRENT_VERSION} | cut -d \. -f 3)
+
+            case "$RELEASE_TYPE" in
+            "major")
+                MAJOR=$((MAJOR+1))
+                MINOR=0
+                PATCH=0
+                ;;
+            "minor")
+                MINOR=$((MINOR+1))
+                PATCH=0
+                ;;
+            *)
+                PATCH=$((PATCH+1))
+                ;;
+            esac
+
+            # Increment minor version number
+            NEXT_VERSION=${MAJOR}.${MINOR}.${PATCH}
+            echo "Next version $NEXT_VERSION"
+            git checkout -b release/v${NEXT_VERSION}
+
+            # Bump version number
+            echo ${NEXT_VERSION} > VERSION
+            git add VERSION
+            git commit -m "Release v${NEXT_VERSION}. Bump version"
+
+            # Create the tag
+            notes=`git log v${CURRENT_VERSION}..HEAD --pretty='format:%B' | sort | uniq | grep "^\s*\[\|\s*\*\s*\["| sed 's/\* \[/[/g'`
+            fnotes=`echo "$notes" | sed -E 's/\[(.*)\]/[\1](https:\/\/shamild.atlassian.net\/browse\/\1)/g'`
+            tickets=`echo "$notes" | sed -E 's/\[(.*)\].*/\1/g' | uniq`
+
+            git tag v${NEXT_VERSION} -m "Change log for v${NEXT_VERSION}" -m "$fnotes"
+
+            # Push the release branch
+            git push origin release/v${NEXT_VERSION}
+
+            git push --tags
+  patch-release:
+    <<: *release
+    environment:
+      RELEASE_TYPE: patch
+  minor-release:
+    <<: *release
+    environment:
+      RELEASE_TYPE: minor
+  major-release:
+    <<: *release
+    environment:
+      RELEASE_TYPE: major
 workflows:
   version: 2
   build-deploy:
@@ -149,6 +244,30 @@ workflows:
       - deploy-dev:
           requires:
             - publish-develop
+      - display-diff-from-master:
+          requires:
+            - deploy-dev
+      - patch-release-approval:
+          type: approval
+          requires:
+            - display-diff-from-master
+      - minor-release-approval:
+          type: approval
+          requires:
+            - display-diff-from-master
+      - major-release-approval:
+          type: approval
+          requires:
+            - display-diff-from-master
+      - patch-release:
+          requires:
+            - patch-release-approval
+      - minor-release:
+          requires:
+            - minor-release-approval
+      - major-release:
+          requires:
+            - major-release-approval
       - staging-approval:
           type: approval
           requires: *requires-built
