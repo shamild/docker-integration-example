@@ -202,6 +202,15 @@ jobs:
             git commit -m "Release v${NEXT_VERSION}. Bump version"
 
             # Create the tag
+            echo "before simple git log"
+            notes=`git log v${CURRENT_VERSION}..HEAD --pretty='format:%B'`
+            echo "before 2"
+            notes=`git log v${CURRENT_VERSION}..HEAD --pretty='format:%B' | sort `
+            echo "before 3"
+            notes=`git log v${CURRENT_VERSION}..HEAD --pretty='format:%B' | sort | uniq`
+            echo "before fnotes"
+            notes=`git log v${CURRENT_VERSION}..HEAD --pretty='format:%B' | sort | uniq | grep "^\s*\[\|\s*\*\s*\["`
+            echo "before fnotes"
             echo "before notes"
             notes=`git log v${CURRENT_VERSION}..HEAD --pretty='format:%B' | sort | uniq | grep "^\s*\[\|\s*\*\s*\["| sed 's/\* \[/[/g'`
             echo "before fnotes"
