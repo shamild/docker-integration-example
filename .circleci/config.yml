@@ -209,6 +209,8 @@ jobs:
             echo "before 3"
             notes=`git log v${CURRENT_VERSION}..HEAD --pretty='format:%B' | sort | uniq`
             echo "before fnotes"
+            notes=`git log v${CURRENT_VERSION}..HEAD --pretty='format:%B' | sort | uniq | grep "12345"`
+            echo "before fnotes"
             notes=`git log v${CURRENT_VERSION}..HEAD --pretty='format:%B' | sort | uniq | grep "^\s*\[\|\s*\*\s*\["`
             echo "before fnotes"
             echo "before notes"
